@@ -52,18 +52,23 @@ def unet(input_dim, output_channels):
 
     def conv_down(x, channels):
         x = Conv2D(channels, 3, activation='relu', padding='same')(x)
-        c = Conv2D(channels, 3, activation='relu', padding='same')(x)
-        d = MaxPooling2D((2, 2))(c)
-        return d, c
+        x = Conv2D(channels, 3, activation='relu', padding='same')(x)
+        x = BatchNormalization()(x)
+
+        d = MaxPooling2D((2, 2))(x)
+        return d, x
 
     def conv_up(x1, x2, channels):
         # x1 = UpSampling2D((2, 2))(x1)
 
         x1 = Conv2DTranspose(channels, 3, strides=(2, 2), activation='relu', padding='same')(x1)
+        x1 = BatchNormalization()(x1)
 
         x = Concatenate()([x1, x2])
         x = Conv2D(channels, 3, activation='relu', padding='same')(x)
         x = Conv2D(channels, 3, activation='relu', padding='same')(x)
+        x = BatchNormalization()(x)
+
         return x
 
     x = inputs
@@ -76,6 +81,7 @@ def unet(input_dim, output_channels):
 
     x = Conv2D(1024, 3, activation='relu', padding='same')(x)
     x = Conv2D(1024, 3, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
 
     for ch, ly in zip(channels[::-1], layers[::-1]):
         x = conv_up(x, ly, ch)

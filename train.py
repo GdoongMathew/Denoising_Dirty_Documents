@@ -1,9 +1,13 @@
 import tensorflow as tf
+gpus = tf.config.experimental.list_physical_devices('GPU')
+
+# Currently, memory growth needs to be the same across GPUs
+for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
 import zipfile
 import os
 from glob import glob
-import cv2
-from models import cnn
+from models import unet
 from tensorflow.keras.callbacks import ReduceLROnPlateau
 from tensorflow.keras.callbacks import ModelCheckpoint
 
@@ -72,7 +76,7 @@ BATCH_SIZE = 4
 EPOCHS = 500
 LEARNING_RATE = 2e-3
 RATE_DECAY = 0.8
-model_path = 'cnn/cnn_{epoch:02d}.h5'
+model_path = 'unet/unet_{epoch:02d}.h5'
 
 train_df = tf.data.Dataset.zip((tf.data.Dataset.list_files(train_img, shuffle=False),
                                 tf.data.Dataset.list_files(train_cleaned_img, shuffle=False)))
@@ -85,7 +89,8 @@ train_df = (train_df.
             batch(BATCH_SIZE, drop_remainder=True).
             prefetch(1))
 
-model = cnn(INPUT_SHAPE, 1)
+model = unet(INPUT_SHAPE, 1)
+model.load_weights('unet/unet.h5')
 model.summary()
 
 model.compile(
@@ -98,6 +103,7 @@ lr_sch = ReduceLROnPlateau(monitor='loss',
                            verbose=1)
 model_checkpoints = ModelCheckpoint(model_path,
                                     monitor='loss',
+                                    save_best_only=True,
                                     verbose=1)
 
 model.fit(train_df,

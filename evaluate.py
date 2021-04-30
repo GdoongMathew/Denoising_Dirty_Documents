@@ -1,4 +1,3 @@
-
 import tensorflow as tf
 import os
 from glob import glob
@@ -11,8 +10,7 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 
 # Currently, memory growth needs to be the same across GPUs
 for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
-
+    tf.config.experimental.set_memory_growth(gpu, True)
 
 # path to zipped & working directories
 path_zip = r'E:\Data\denoising-dirty-documents'
@@ -22,7 +20,10 @@ test_img = sorted(glob(os.path.join(wd, 'test', '*.png')))
 
 INPUT_SHAPE = (256, 256, 1)
 
-model = unet(INPUT_SHAPE, 1)
+model = unet(INPUT_SHAPE, 1,
+             use_pooling=False,
+             skip_layers='inception',
+             final_activation='sigmoid')
 model.load_weights('unet/unet.h5')
 
 
@@ -51,6 +52,7 @@ def concat_img(imgs, points, ori_shape):
 
     return blk_img
 
+
 ids = []
 vals = []
 for img_path in test_img:
@@ -64,6 +66,9 @@ for img_path in test_img:
     rest = np.reshape(rest, rest.shape[:-1])
     cnt_img = concat_img(rest, points, ori_shape)
 
+    # cv2.imshow('img', cnt_img)
+    # cv2.waitKey(0)
+
     img_shape = cnt_img.shape
     _id = os.path.splitext(os.path.basename(img_path))[0]
     for i in range(img_shape[0]):
@@ -71,34 +76,6 @@ for img_path in test_img:
             ids.append(f'{_id}_{i + 1}_{j + 1}')
             vals.append(cnt_img[i, j])
 
-
-#     rest = model.predict_on_batch(test)
-#     for p, r, s in zip(path, rest, ori_shape):
-#         x = tuple(s.numpy())
-#         r = cv2.resize(r, (x[1], x[0]))
-#         # r = cv2.resize(r.astype('uint8'), tuple(s.numpy()[:2]))
-#         img_shape = r.shape
-#         _id = os.path.splitext(os.path.basename(p.numpy().decode('utf-8')))[0]
-#         for i in range(img_shape[0]):
-#             for j in range(img_shape[1]):
-#                 ids.append(f'{_id}_{i + 1}_{j + 1}')
-#                 vals.append(r[i, j])
 #
 pd.DataFrame({'id': ids, 'value': vals}).to_csv('submission.csv', index=False)
-# import matplotlib.pyplot as plt
-#
-# plt.figure(figsize=(15, 25))
-# for i in range(0, 8, 2):
-#     plt.subplot(4, 2, i + 1)
-#     plt.xticks([])
-#     plt.yticks([])
-#     plt.imshow(test[i][:, :, 0], cmap="gray")
-#     plt.title('Noise image')
-#
-#     plt.subplot(4, 2, i + 2)
-#     plt.xticks([])
-#     plt.yticks([])
-#     plt.imshow(rest[i][:, :, 0], cmap="gray")
-#     plt.title('Denoised image')
-#
-# plt.show()
+

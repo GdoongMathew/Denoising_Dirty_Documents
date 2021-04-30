@@ -68,6 +68,27 @@ class CustomReduceLROnPlateau(ReduceLROnPlateau):
                         self.wait = 0
 
 
+# Cylindrical Learning Rate
+def cylindrical_lr(initial_lr,
+                   minimal_lr=1e-10,
+                   cycle_step=10000,
+                   decay_rate=0.8,
+                   decay_steps=1):
+    assert initial_lr >= minimal_lr
+
+    def lr(step):
+
+        if step == 0:
+            return initial_lr
+        t, r = divmod(step, cycle_step)
+
+        if t % 2:
+            return initial_lr * decay_rate ** ((cycle_step - r) / decay_steps)
+        else:
+            return initial_lr * decay_rate ** (r / decay_steps)
+    return lr
+
+
 class ClipConstraint(Constraint):
     def __init__(self, clip_value=1e-2):
         super(ClipConstraint, self).__init__()

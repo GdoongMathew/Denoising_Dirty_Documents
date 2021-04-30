@@ -10,6 +10,7 @@ from tensorflow.keras.layers import Conv2DTranspose
 from tensorflow.keras.layers import Concatenate
 from tensorflow.python.keras.engine import data_adapter
 
+activation_layer = 'relu'
 
 def conv2d_bn(x,
               filters,
@@ -17,6 +18,7 @@ def conv2d_bn(x,
               padding='same',
               strides=1,
               name=None,
+              regularizer=None,
               activation='relu'):
     if name is not None:
         bn_name = name + '_bn'
@@ -35,6 +37,7 @@ def conv2d_bn(x,
         filters, kernels,
         strides=strides,
         padding=padding,
+        kernel_regularizer=regularizer,
         name=conv_name)(x)
     x = BatchNormalization(name=bn_name)(x)
     if activation is not None:
@@ -42,7 +45,7 @@ def conv2d_bn(x,
     return x
 
 
-def inception_block(x, mix=1, activation='relu'):
+def inception_block(x, mix=1, activation='relu', regularizer=None):
     mix_filters = {
         3: [4, 8, 12, 16, 24, 24],
         2: [8, 12, 16, 24, 32, 32],
@@ -54,23 +57,24 @@ def inception_block(x, mix=1, activation='relu'):
 
     name = f'inception_{mix}_'
     filters = mix_filters[mix]
-    branch1 = conv2d_bn(x, filters[0], 1, activation=activation, name=name + 'b1_')
+    branch1 = conv2d_bn(x, filters[0], 1, activation=activation, name=name + 'b1_', regularizer=regularizer)
 
-    branch5 = conv2d_bn(x, filters[1], 1, activation=activation, name=name + 'b51_')
-    branch5 = conv2d_bn(branch5, filters[2], 5, activation=activation, name=name + 'b52_')
+    branch5 = conv2d_bn(x, filters[1], 1, activation=activation, name=name + 'b51_', regularizer=regularizer)
+    branch5 = conv2d_bn(branch5, filters[2], 5, activation=activation, name=name + 'b52_', regularizer=regularizer)
 
-    branch3 = conv2d_bn(x, filters[3], 1, activation=activation, name=name + 'b31_')
-    branch3 = conv2d_bn(branch3, filters[4], 3, activation=activation, name=name + 'b32_')
-    branch3 = conv2d_bn(branch3, filters[5], 3, activation=activation, name=name + 'b33_')
+    branch3 = conv2d_bn(x, filters[3], 1, activation=activation, name=name + 'b31_', regularizer=regularizer)
+    branch3 = conv2d_bn(branch3, filters[4], 3, activation=activation, name=name + 'b32_', regularizer=regularizer)
+    branch3 = conv2d_bn(branch3, filters[5], 3, activation=activation, name=name + 'b33_', regularizer=regularizer)
 
     branch_pool = AveragePooling2D(strides=1, padding='same')(x)
-    branch_pool = conv2d_bn(branch_pool, filters[0], 1, activation=activation)
+    branch_pool = conv2d_bn(branch_pool, filters[0], 1, activation=activation, regularizer=regularizer)
 
     x = Concatenate()([branch1, branch5, branch3, branch_pool])
     return x
 
 
 def cnn(input_dim, output_channels, name='CNN'):
+    # auto encoder
     inputs = Input(shape=input_dim)
 
     def down_conv(_in, channels):
@@ -121,38 +125,39 @@ def unet(input_dim,
          name='Unet',
          use_pooling=True,
          final_activation='sigmoid',
+         regularizer=None,
          skip_layers=None):
     inputs = Input(shape=input_dim)
 
     def conv_down(_x, channels, layers_id):
-        _x = Conv2D(channels, 3, padding='same')(_x)
-        _x = Activation('elu')(_x)
-        _x = Conv2D(channels, 3, padding='same')(_x)
-        _x = Activation('elu')(_x)
+        _x = Conv2D(channels, 3, padding='same', kernel_regularizer=regularizer)(_x)
+        _x = Activation(activation_layer)(_x)
+        _x = Conv2D(channels, 3, padding='same', kernel_regularizer=regularizer)(_x)
+        _x = Activation(activation_layer)(_x)
         _x = BatchNormalization()(_x)
         if use_pooling:
             d = AveragePooling2D((2, 2))(_x)
         else:
-            d = Conv2D(channels, 3, strides=(2, 2), padding='same')(_x)
-            d = Activation('elu')(d)
+            d = Conv2D(channels, 3, strides=(2, 2), padding='same', kernel_regularizer=regularizer)(_x)
+            d = Activation(activation_layer)(d)
 
         if skip_layers == 'inception':
-            _x = inception_block(_x, layers_id, activation='elu')
+            _x = inception_block(_x, layers_id, activation=activation_layer, regularizer=regularizer)
 
         return d, _x
 
     def conv_up(x1, x2, channels):
         # x1 = UpSampling2D((2, 2))(x1)
 
-        x1 = Conv2DTranspose(channels, 3, strides=(2, 2), padding='same')(x1)
-        x1 = Activation('elu')(x1)
+        x1 = Conv2DTranspose(channels, 3, strides=(2, 2), padding='same', kernel_regularizer=regularizer)(x1)
+        x1 = Activation(activation_layer)(x1)
         x1 = BatchNormalization()(x1)
 
         x = Concatenate()([x1, x2])
-        x = Conv2D(channels, 3, padding='same')(x)
-        x = Activation('elu')(x)
-        x = Conv2D(channels, 3, padding='same')(x)
-        x = Activation('elu')(x)
+        x = Conv2D(channels, 3, padding='same', kernel_regularizer=regularizer)(x)
+        x = Activation(activation_layer)(x)
+        x = Conv2D(channels, 3, padding='same', kernel_regularizer=regularizer)(x)
+        x = Activation(activation_layer)(x)
         x = BatchNormalization()(x)
 
         return x
@@ -165,10 +170,10 @@ def unet(input_dim,
         x, cnv_ly = conv_down(x, ch, i)
         layers.append(cnv_ly)
 
-    x = Conv2D(1024, 3, padding='same')(x)
-    x = Activation('elu')(x)
-    x = Conv2D(1024, 3, padding='same')(x)
-    x = Activation('elu')(x)
+    x = Conv2D(1024, 3, padding='same', kernel_regularizer=regularizer)(x)
+    x = Activation(activation_layer)(x)
+    x = Conv2D(1024, 3, padding='same', kernel_regularizer=regularizer)(x)
+    x = Activation(activation_layer)(x)
     x = BatchNormalization()(x)
 
     for ch, ly in zip(channels[::-1], layers[::-1]):
